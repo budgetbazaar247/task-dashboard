@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #07070a;
+}
+
+::selection {
+  background-color: rgba(196, 143, 52, 0.35);
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-2.5 text-sm text-white placeholder:text-white/40 focus:border-gold-500 focus:outline-none;
+  }
+}
