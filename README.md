@@ -1,105 +1,129 @@
-# Task Dashboard
+# BudgetBazaar247
 
-A task management application that allows users to create, organize, and filter tasks using a modern, responsive UI built with React.
+A premium watch & accessories e-commerce storefront for the Saudi Arabia / GCC market, built with
+Next.js (App Router), TypeScript, and Tailwind CSS, with an AI shopping assistant ("BudgetBazaar AI")
+powered by the Anthropic API and real tool use against the product catalog.
 
-> **Note:** This application is intended for demonstration purposes only and is not meant for production use.
+> **Demo storefront.** Checkout does not process real payments, and the AI assistant will refuse
+> to invent prices, stock, or shipping times — everything it says comes from the product catalog
+> via tool calls.
 
-## Features
+## Tech Stack
 
-- **Task Management**: Create, complete, and delete tasks
-- **Task Tags**: Organize tasks with customizable tags
-- **Task Lists**: Create multiple lists with custom filters
-- **List Filters**: Filter tasks by tags or completion status
-- **Animations**: Smooth transitions and animations using Framer Motion
-- **Responsive Design**: Works on desktop and mobile devices
-
-## Technology Stack
-
-- **React**: Modern React with functional components and hooks
-- **Tailwind CSS**: Utility-first CSS framework for styling
-- **Framer Motion**: Animation library for React
-- **Vite**: Fast, modern build tool and development server
-- **Vitest**: Testing framework compatible with Vite
+- **Next.js 15** (App Router) + **TypeScript**
+- **Tailwind CSS** for styling
+- **Zustand** for cart/wishlist state (persisted to `localStorage`)
+- **lucide-react** for icons
+- **@anthropic-ai/sdk** for the AI shopping assistant, called only from the server
 
 ## Getting Started
 
-### Prerequisites
+```bash
+npm install
+npm run dev
+```
 
-- Node.js (v18+)
-- npm (v10+)
+Open [http://localhost:3000](http://localhost:3000).
 
-### Installation
+Other scripts:
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/task-dashboard.git
-   cd task-dashboard
+- `npm run build` — production build
+- `npm start` — run the production build
+- `npm run lint` — ESLint
+
+## Adding Products
+
+Product data lives in `src/data/products.ts` — a single typed array. Add a new entry with a
+unique `id`/`slug`/`sku`, price, description, `specifications`, category, and an `images` array
+(see below). The site, search, filters, and the AI assistant all read from this one file.
+
+## Adding Product Images
+
+Images live in `public/products/`. Demo products currently use generated placeholder SVGs.
+
+To use your own photos:
+
+1. Drop image files into `public/products/`, e.g. `watch-1.jpg`, `watch-1-2.jpg`.
+2. In `src/data/products.ts`, point that product's `images` array at your files:
+   ```ts
+   images: ["/products/watch-1.jpg", "/products/watch-1-2.jpg"],
    ```
+3. Save. The shop grid, product gallery, and AI assistant's product links update automatically.
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+See `public/products/README.md` for details.
 
-3. Start the development server:
-   ```bash
-   npm start
-   ```
+## Configuring the AI Assistant
 
-4. Open [http://localhost:3000](http://localhost:3000) to view the app
+The assistant runs server-side only — the browser never sees your API key.
 
-### Available Scripts
+1. Copy `.env.example` to `.env.local`.
+2. Set `ANTHROPIC_API_KEY=your_key_here` in `.env.local` (never commit this file).
+3. Restart `npm run dev`.
 
-- `npm start` - Start the development server
-- `npm start:hydrated` - Start the development server with data hydration enabled
-- `npm run build` - Build for production
-- `npm run build:hydrated` - Build for production with data hydration enabled
-- `npm run build:clean` - Build for production with data hydration explicitly disabled
-- `npm run preview` - Preview the production build locally
-- `npm run preview:hydrated` - Preview the production build with data hydration enabled
-- `npm test` - Run tests with Vitest
+The chat widget (bottom-right) posts to `/api/ai/chat`, a server route that calls the Anthropic
+API with tool definitions backed by real store data (`src/lib/ai-tools.ts`):
 
-### Data Hydration
+```
+Customer → Chat widget → /api/ai/chat (server) → Anthropic API
+                                                      ↓ tool calls
+                              searchProducts / getProduct / compareProducts /
+                              getProductsByCategory / checkInventory /
+                              addToCart / getStorePolicy
+```
 
-The application supports pre-populating the app with sample data through an optional hydration process:
+The assistant is instructed to never invent prices, stock, or policies — only to state what the
+tools return. `addToCart` calls are relayed back to the browser as a `clientAction`, and the
+widget applies them to the local cart (the server has no access to `localStorage`).
 
-- Sample data is defined in `src/data/initialData.json`
-- Hydration can be enabled/disabled using the `VITE_ENABLE_DATA_HYDRATION` environment variable
-- Use the convenience scripts for development with hydration:
-  - `npm run start:hydrated` - Development with sample data
-  - `npm run build:hydrated` - Production build with sample data
-  - `npm run build:clean` - Production build without sample data
-- GitHub Actions deployment automatically enables hydration for the production build
+## Store Configuration
 
-## Architecture
+Edit `src/config/site.ts` to change the store name, WhatsApp number, currency, shipping regions,
+and return window in one place. `NEXT_PUBLIC_STORE_NAME` and `NEXT_PUBLIC_WHATSAPP_NUMBER` can
+also be set via environment variables (see `.env.example`).
 
-### State Management
+## Connecting a Real Payment Provider
 
-The application uses React Context for state management:
+The checkout page (`src/app/checkout/page.tsx`) currently clears the cart and redirects to a
+success page without charging anything — there's a visible placeholder notice explaining this.
+To go live:
 
-- **TaskContext**: Manages tasks state and operations (add, toggle, delete)
-- **TagContext**: Manages tags and their relationships with tasks
-- **ListContext**: Manages task lists and filtering logic
+1. Pick a provider that supports Saudi payment methods (e.g. Mada) — common choices are Moyasar,
+   HyperPay, PayTabs, Tap, or Stripe (for international cards).
+2. Add a server route (e.g. `/api/checkout`) that creates a payment/session with your provider's
+   server-side SDK, using a secret key stored in `.env.local` — never in client code.
+3. Replace the checkout form's submit handler to redirect to the provider's hosted payment page,
+   or embed their client SDK/element for in-page card entry.
+4. Verify payment status via a webhook before marking an order as paid, then redirect to
+   `/checkout/success` (or a dynamic order confirmation page).
 
-### UI Components
+## Deployment
 
-The application features several key components:
-- **TaskList**: Renders a list of tasks
-- **TaskItem**: Renders an individual task
-- **TaskBoard**: Manages multiple task lists
-- **TagManager**: Interface for creating and managing tags
-- **GlobalTaskForm**: Form for creating new tasks
-- **ListAddTask**: Form for adding tasks to specific lists
-- **TaskListConfig**: Interface for configuring task lists
+This is a standard Next.js app and deploys to any Next.js-compatible host (Vercel, Netlify,
+a Node server, or a container):
 
-## Contributing
+```bash
+npm run build
+npm start
+```
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Set `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_STORE_NAME`, `NEXT_PUBLIC_WHATSAPP_NUMBER`, and
+`NEXT_PUBLIC_SITE_URL` (your production URL, used for metadata/sitemap) as environment variables
+on your host — never in the repository.
 
-## License
+## Project Structure
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```
+src/
+  app/                # Routes (App Router): home, shop, product/[slug], cart, checkout,
+                       # checkout/success, about, contact, faq, privacy, terms, wishlist,
+                       # api/ai/chat, sitemap.ts, robots.ts
+  components/         # Navbar, Footer, ProductCard, ProductGrid, Hero, AIChat, WhatsAppButton, Toaster
+  config/site.ts      # Store name, currency, WhatsApp number, shipping/returns config
+  data/products.ts    # Product catalog + search/filter helpers
+  data/policies.ts    # Shipping/returns/warranty/payment policy text
+  lib/ai-tools.ts     # AI tool implementations (server-side, backed by the catalog)
+  lib/cart-store.ts   # Zustand cart store (persisted)
+  lib/wishlist-store.ts
+  lib/toast-store.ts
+public/products/      # Product images (placeholders — replace with your own photos)
+```
